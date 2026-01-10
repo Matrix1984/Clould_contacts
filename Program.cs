@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.FileProviders; 
+using Microsoft.Extensions.FileProviders;
+using TodoApi.Dtos;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +27,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseCors(MyAllowSpecificOrigins);
- 
+
 
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -45,10 +46,10 @@ app.MapPost("/Contact", async ([FromForm] InsertContactDto dto) =>
 {
     var repo = new ContactRepo();
 
-    if (dto.File != null)
-        dto.ImagePath = await UploadFileAsync(dto.File);
-    else
-        dto.ImagePath = GetNoImage();
+    //if (dto.File != null)
+    //    dto.ImagePath = dto.ImagePath; //await UploadFileAsync(dto.File);
+    //else
+    //    dto.ImagePath = GetNoImage();
 
     int id = repo.InsertContact(dto);
 
@@ -79,11 +80,10 @@ app.MapPut("/Contact", async ([FromForm] UpdateContactDto dto) =>
 {
     var repo = new ContactRepo();
 
-    if (dto.File != null && String.IsNullOrEmpty(dto.ImagePath))
-        dto.ImagePath = await UploadFileAsync(dto.File);
-     
+    //if (dto.File != null && String.IsNullOrEmpty(dto.ImagePath))
+    //    dto.ImagePath = await UploadFileAsync(dto.File); 
 
-        repo.UpdateContactById(dto);
+    repo.UpdateContactById(dto);
 
     return repo.GetContactById(dto.Id);
 
@@ -91,10 +91,11 @@ app.MapPut("/Contact", async ([FromForm] UpdateContactDto dto) =>
 
 
 app.MapDelete("/Contact/{id:int}", async (int id) =>
-{ 
+{
     var repo = new ContactRepo();
     repo.DeleteContact(id);
 });
+
 
 
 app.MapPost("/Contact/BulkInsert", async (List<InsertContactDto> dtos) =>
@@ -109,9 +110,43 @@ app.MapPost("/Contact/BulkInsert", async (List<InsertContactDto> dtos) =>
     return repo.GetAllContacts();
 });
 
+
+app.MapPost("/Contact/UpdateOfflineAndGetOnlineRecords", async (UpdateAndSelectDTO requestDto) =>
+{
+    //Insert
+    var repo = new ContactRepo();
+
+    foreach (var insertDto in requestDto.InsertDtos)
+    {
+        if (String.IsNullOrEmpty(insertDto.ImagePath))
+            insertDto.ImagePath = GetNoImage();
+
+        repo.InsertContactOffline(insertDto);
+    }
+
+    //Update
+    foreach (var updateDto in requestDto.UpdateDtos)
+    {
+        if (String.IsNullOrEmpty(updateDto.ImagePath))
+            updateDto.ImagePath = GetNoImage();
+
+        repo.UpdateContactOfflineById(updateDto); 
+    }
+
+    //Delete
+    foreach (var id in requestDto.DeletetIds)
+    { 
+        repo.DeleteContact(id);
+    }
+     
+    return repo.GetAllContacts();
+});
+
 app.Run();
 
 
+
+ 
 
 async Task<string> UploadFileAsync(IFormFile file)
 {
@@ -134,5 +169,24 @@ async Task<string> UploadFileAsync(IFormFile file)
     return Configurations.SERVER_HOST + Configurations.IMAGE_UPLOAD_PATH + trustedFileName;
 }
 
- string GetNoImage() =>
-    Configurations.SERVER_HOST + Configurations.IMAGE_UPLOAD_PATH + "/No_image_available.svg.png";
+string GetNoImage() =>
+   Configurations.SERVER_HOST + Configurations.IMAGE_UPLOAD_PATH + "/No_image_available.svg.png";
+
+
+string UploadBase64FileAsync(string base64Data)
+{
+    // Convert the Base64 string to a byte array
+    byte[] imageBytes = Convert.FromBase64String(base64Data);
+
+    var trustedFileName = Guid.NewGuid() + "_offline" ;
+
+    var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Images", trustedFileName);
+
+    Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "Images"));
+
+    System.IO.File.WriteAllBytes(filePath, imageBytes);
+    // You might save the trusted file name and original file name (for display) to a database
+    return Configurations.SERVER_HOST + Configurations.IMAGE_UPLOAD_PATH + trustedFileName;
+}
+
+

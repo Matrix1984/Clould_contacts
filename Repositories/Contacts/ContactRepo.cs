@@ -3,13 +3,13 @@ using Microsoft.Data.SqlClient;
 
 public class ContactRepo
 {
-    public IEnumerable<ContactBriefDto> GetAllContacts()
+    public IEnumerable<ContactDto> GetAllContacts()
     {
         using var connection = new SqlConnection(Configurations.CONNECTION_STRING);
 
-        var sql = "SELECT Id,Name,Email,Phone,ImagePath FROM Contact";
+        var sql = "SELECT Id,Name,Email,Phone,ImagePath,FullAddress,Cell,RegistrationDate FROM Contact";
 
-        IEnumerable<ContactBriefDto> contacts = connection.Query<ContactBriefDto>(sql);
+        IEnumerable<ContactDto> contacts = connection.Query<ContactDto>(sql);
 
         return contacts;
     }
@@ -73,7 +73,44 @@ VALUES (@Name,@FullAddress,@Email,@Phone,@Cell,@RegistrationDate,@ImagePath)
 
         return (int)id;
     }
+
+    public void UpdateContactOfflineById(UpdateContactOfflineDto update)
+    {
+        using var connection = new SqlConnection(Configurations.CONNECTION_STRING);
+
+        var sql = @"
+UPDATE Contact SET
+Name=@Name,
+FullAddress=@FullAddress,
+Email=@Email,
+Phone=@Phone,
+Cell=@Cell,
+RegistrationDate=@RegistrationDate
  
+";
+        if (!string.IsNullOrEmpty(update.ImagePath))
+            sql += ",ImagePath=@ImagePath";
+
+        sql += " WHERE Id = @Id";
+
+
+        connection.Execute(sql, update);
+    }
+
+    public int InsertContactOffline(InsertContactOfflineDto insert)
+    {
+        using var connection = new SqlConnection(Configurations.CONNECTION_STRING);
+
+        var sql = @" 
+INSERT INTO Contact (Name,FullAddress,Email,Phone,Cell,RegistrationDate,ImagePath)
+OUTPUT INSERTED.Id
+VALUES (@Name,@FullAddress,@Email,@Phone,@Cell,@RegistrationDate,@ImagePath) 
+";
+
+        var id = connection.ExecuteScalar(sql, insert);
+
+        return (int)id;
+    }
 
     public int DeleteContact(int idd)
     {
